@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-enum RoleType { ADMIN, USER, INVESTIGATOR }
+enum RoleType { ADMIN, REPORTER, INVESTIGATOR }
 
 struct User {
     address userId;
@@ -21,7 +21,7 @@ contract UserManager {
         require(findUserByNID(nid) == zeroAddr, "NID is already taken");
         require(!userExists(msg.sender), "User exists");
         userList.push(msg.sender);
-        users[msg.sender] = User({ userId: msg.sender, name: name, NID: nid, role: RoleType.USER });
+        users[msg.sender] = User({ userId: msg.sender, name: name, NID: nid, role: RoleType.REPORTER });
     }
 
     function changeRole(address _userId, RoleType role) public {
@@ -39,7 +39,7 @@ contract UserManager {
     }
 
     function normalizeUser(address _userId) public {
-        changeRole(_userId, RoleType.USER);
+        changeRole(_userId, RoleType.REPORTER);
     }
 
     function findUserByName(string memory _userName) public view returns (address) {
