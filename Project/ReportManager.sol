@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-import { UserManager, User, RoleType } from "./UserManager.sol";
+import { UserManager, User, RoleType, zeroAddr } from "./UserManager.sol";
 import { StringUtils } from "./StringUtils.sol";
 
 enum ReportStatus { MISSING, FOUND, FALSE }
@@ -24,9 +24,9 @@ contract ReportManager {
     using StringUtils for string;
 
     Report[] reports;
+    mapping (bytes32 => Report) public reportMap;
     UserManager userManager;
 
-    mapping (bytes32 => address) public investigations;
 
     string[] divisions = [
         "dhaka",
@@ -43,12 +43,31 @@ contract ReportManager {
         userManager = UserManager(_userManager);
     }
 
+    function testReport() public {
+        reportMissing("trump", 69, 420, "murder psycho", "khulna", "idk");
+        reportMissing("nataneya", 1, 0, "white dog", "khulna", "idk");
+    }
+
+    function checkReportExist(bytes32 _cid) public view returns (bool) {
+        if (reportMap[_cid].cid != bytes32(0))
+            return true;
+        return false;
+    }
+
     function checkDivision(string memory _location) public view returns (string memory) {
         string memory cleanLocation = _location.toLower();
         for (uint i = 0; i < divisions.length; i++){
             if (cleanLocation.compare(divisions[i])) return divisions[i];
         }
         return "NIL";
+    }
+
+    function checkDivisionIndex(string memory _location) public view returns (uint) {
+        string memory cleanLocation = _location.toLower();
+        for (uint i = 0; i < divisions.length; i++){
+            if (cleanLocation.compare(divisions[i])) return i + 1;
+        }
+        return 0;
     }
 
     function reportMissing(string memory _name, uint256 _age, uint256 _height,string memory _description, string memory _location, string memory _contact) public returns (uint) {
@@ -64,32 +83,97 @@ contract ReportManager {
         else if (_height < 50)
             urgency = Urgency.HIGH;
 
-        reports.push(Report(cid, _name, _age, _height, _description, _location, _contact, urgency, ReportStatus.MISSING));
+        Report memory newReport = Report(cid, _name, _age, _height, _description, _location, _contact, urgency, ReportStatus.MISSING);
+        reports.push(newReport);
+        reportMap[cid] = newReport;
+
         return reports.length - 1;
     }
 
-    function updateReport(uint _reportId, ReportStatus status) public {
+    function updateReport(bytes32 _reportCID, ReportStatus status) public {
         require(userManager.checkUserType(msg.sender, RoleType.REPORTER), "Access denied");
-        require(_reportId < reports.length, "Invalid id");
-        require(reports[_reportId].status == ReportStatus.MISSING, "Report already found or reported false.");
-        reports[_reportId].status = status;
+        require(reportMap[_reportCID].cid != bytes32(0), "Invalid id");
+        require(reportMap[_reportCID].status == ReportStatus.MISSING, "Report already found or reported false.");
+        reportMap[_reportCID].status = status;
     }
 
-    function reportComplete(uint _reportId) public {
-        updateReport(_reportId, ReportStatus.FOUND);
+    function reportComplete(bytes32 _reportCID) public {
+        updateReport(_reportCID, ReportStatus.FOUND);
     }
 
-    function reportFalse(uint _reportId) public {
-        updateReport(_reportId, ReportStatus.FALSE);
+    function reportFalse(bytes32 _reportCID) public {
+        updateReport(_reportCID, ReportStatus.FALSE);
     }
 
-    function assignInvestigator(uint _reportId, address investigatorAddress) public {
-        investigations[reports[_reportId].cid] = investigatorAddress;
+    function findReportByCID(bytes32 _cid) public view returns (uint) {
+        for (uint i = 0; i <=reports.length; i++ )
+            if (reports[i].cid == _cid)
+                return i + 1;
+        return 0;
     }
 
-    function sortDivisionByCount() public {
+    function findAllReports() public view returns (Report[] memory) {
+        return reports;
+    }
+
+    function sortDivisionByCount() public returns (string[] memory) {
+        uint[] memory divisionCount = new uint[](divisions.length);
         
+        for (uint i = 0; i < reports.length; i++) {
+            divisionCount[checkDivisionIndex(reports[i].location) - 1] += 1;
+        }
+
+        string memory tmpName;
+        uint tmpCount;
+
+        for (uint j = 0; j < divisions.length - 1; j++ ){
+            for (uint i = 0; i < divisions.length - 1; i++ ) {
+                if (divisionCount[i] < divisionCount[i + 1]){
+                    tmpName = divisions[i];
+                    tmpCount = divisionCount[i];
+
+                    divisions[i] = divisions[i + 1];
+                    divisions[i + 1] = tmpName;
+            
+                    divisionCount[i] = divisionCount[i + 1];
+                    divisionCount[i + 1] = tmpCount;
+                }
+            }
+        }
+
+        return divisions;
     }
+
+
+
+    function sortDivisionByCountDesc() public returns (string[] memory) {
+        uint[] memory divisionCount = new uint[](divisions.length);
+        
+        for (uint i = 0; i < reports.length; i++) {
+            divisionCount[checkDivisionIndex(reports[i].location) - 1] += 1;
+        }
+
+        string memory tmpName;
+        uint tmpCount;
+
+        for (uint j = 0; j < divisions.length - 1; j++ ){
+            for (uint i = 0; i < divisions.length - 1; i++ ) {
+                if (divisionCount[i] > divisionCount[i + 1]){
+                    tmpName = divisions[i];
+                    tmpCount = divisionCount[i];
+
+                    divisions[i] = divisions[i + 1];
+                    divisions[i + 1] = tmpName;
+            
+                    divisionCount[i] = divisionCount[i + 1];
+                    divisionCount[i + 1] = tmpCount;
+                }
+            }
+        }
+
+        return divisions;
+    }
+
 
     function findReportByDivision(string memory _location) public view returns (Report[] memory)  {
         uint filterCount = 0;
@@ -107,4 +191,5 @@ contract ReportManager {
         
         return filters;
     }
+
 }
